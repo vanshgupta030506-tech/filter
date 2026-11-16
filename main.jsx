@@ -4,10 +4,22 @@ import { Camera, Download, RefreshCw, Sparkles, ChevronRight, Circle, Shirt, Sun
 import { FilesetResolver, PoseLandmarker, ImageSegmenter } from '@mediapipe/tasks-vision';
 import './style.css';
 
-const looks = [["Rekha","Himmatwala · 1983","sari","#ce286f","Gold jhumkas","drops"],["Vijay","Deewaar · 1975","denim","#28415c","Knotted neck scarf","scarf"],["Iqbal","Coolie · 1983","cotton","#bc3024","Brass porter badge","badge"],["Jimmy","Disco Dancer · 1982","disco","#302f38","Silver headband","band"],["Mona","Saagar · 1985","silk","#a93236","Gold hoops","hoops"],["Chandni","Chandni · 1989","sari","#f2d246","Pearl earrings","pearls"],["Mohini","Tezaab · 1988","fringe","#d72e80","Stage earrings","drops"],["Mogambo","Mr. India · 1987","braid","#28352e","Gold epaulettes","epaulettes"],["Umrao","Umrao Jaan · 1981","brocade","#8c2745","Pearl choker","choker"],["Prem","Maine Pyar Kiya · 1989","leather","#302d2e","Jacket badge","badge"]].map(([title,film,kind,base,tagline,accessory])=>({
+const looks = [["Rekha","Himmatwala · 1983","sari","#ce286f","Gold jhumkas","drops"],["Vijay","Deewaar · 1975","denim","#28415c","Knotted neck scarf","scarf"],["Iqbal","Coolie · 1983","cotton","#bc3024","Brass porter badge","badge"],["Jimmy","Disco Dancer · 1982","disco","#302f38","Silver headband","band"],["Mona","Saagar · 1985","silk","#a93236","Gold hoops","hoops"],["Chandni","Chandni · 1989","sari","#f2d246","Pearl earrings","pearls"],["Mohini","Tezaab · 1988","fringe","#d72e80","Stage earrings","drops"],["Mogambo","Mr. India · 1987","braid","#28352e","Gold epaulettes","epaulettes"],["Umrao","Umrao Jaan · 1981","brocade","#8c2745","Pearl choker","choker"],["Prem","Maine Pyar Kiya · 1989","leather","#302d2e","Patched black leather · burgundy shirt","badge"]].map(([title,film,kind,base,tagline,accessory])=>({
   title, film, kind, tagline, accessory, id:title, icon:'✦', colors:[base,'#dfb875'],
   rgb:[1,3,5].map(i=>parseInt(base.slice(i,i+2),16))
 }));
+
+const jacketPhoto = new Image();
+let jacketPixels;
+jacketPhoto.onload = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = jacketPhoto.width;
+  canvas.height = jacketPhoto.height;
+  const context = canvas.getContext('2d');
+  context.drawImage(jacketPhoto, 0, 0);
+  jacketPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+};
+jacketPhoto.src = '/prem-fit.png';
 
 function accessories(ctx, look, mask, w, h, shoulderWidth, garmentTop){
   const values=mask.getAsFloat32Array();
@@ -39,7 +51,7 @@ function accessories(ctx, look, mask, w, h, shoulderWidth, garmentTop){
 
 function App(){
   const videoRef=useRef(null), garmentCanvasRef=useRef(null), landmarkerRef=useRef(null), segmenterRef=useRef(null), rafRef=useRef(null), streamRef=useRef(null), lastPoseRef=useRef(null), maskRef=useRef(null), selectedRef=useRef(looks[0]);
-  const [selected,setSelected]=useState(looks[0]); const [camera,setCamera]=useState('idle'); const [error,setError]=useState(''); const [poseReady,setPoseReady]=useState(false); const [captured,setCaptured]=useState(null); const [timer,setTimer]=useState(false); const [mode,setMode]=useState('live');
+  const [selected,setSelected]=useState(looks.find(item=>item.title==="Prem")); const [camera,setCamera]=useState('idle'); const [error,setError]=useState(''); const [poseReady,setPoseReady]=useState(false); const [captured,setCaptured]=useState(null); const [timer,setTimer]=useState(false); const [mode,setMode]=useState('live');
   useEffect(()=>{selectedRef.current=selected},[selected]);
   useEffect(()=>()=>{cancelAnimationFrame(rafRef.current); streamRef.current?.getTracks().forEach(t=>t.stop()); landmarkerRef.current?.close?.()},[]);
   const startCamera=async()=>{
@@ -73,9 +85,22 @@ function App(){
         let left=mw,right=0,top=mh;
         for(let i=0;i<confidence.length;i++)if(confidence[i]>.6){left=Math.min(left,i%mw);right=Math.max(right,i%mw);top=Math.min(top,Math.floor(i/mw))}
         const look=selectedRef.current.kind;
+        const jacket=['leather','denim','disco'].includes(look) && jacketPixels;
+        // Estimate the neckline from the upper clothing band. Sleeves lower in
+        // the frame must not move the shirt's button line sideways.
+        let neckSum=0, neckCount=0;
+        const span=Math.max(1,right-left);
+        const rowLeft=new Int32Array(mh).fill(mw),rowRight=new Int32Array(mh).fill(-1);
+        if(jacket)for(let row=top;row<mh;row++)for(let col=left;col<=right;col++){
+          if(confidence[row*mw+col]<.45)continue;
+          rowLeft[row]=Math.min(rowLeft[row],col);
+          rowRight[row]=Math.max(rowRight[row],col);
+          if(row<top+span*.10){neckSum+=col;neckCount++}
+        }
+        const neck=neckCount?neckSum/neckCount:(left+right)/2;
         for(let y=0;y<h;y++)for(let x=0;x<w;x++){
           const mx=Math.floor((w-1-x)*mw/w),my=Math.floor(y*mh/h);
-          const blend=Math.min(1,Math.max(0,(confidence[my*mw+mx]-.28)*2));
+          const blend=Math.min(1,Math.max(0,(confidence[my*mw+mx]-.12)*2.8));
           if(!blend)continue;
           const i=(y*w+x)*4, light=(pixels[i]*.30+pixels[i+1]*.59+pixels[i+2]*.11)/255;
           const u=(mx-left)/Math.max(1,right-left),v=(my-top)/Math.max(1,right-left);
@@ -86,11 +111,32 @@ function App(){
           if(look==='brocade' && Math.cos(u*120)*Math.sin(v*108)>.72)color=[199,152,82];
           if(look==='fringe' && v<.28 && Math.cos(u*155)>.86)color=[228,179,123];
           if(look==='denim' && Math.abs(u-.5)<.008)color=[165,143,97];
+          if(jacket){
+            const width=jacketPhoto.naturalWidth,height=jacketPhoto.naturalHeight;
+            const depth=Math.max(0,Math.min(1,(my-top)*h/mh/(span*w/mw)));
+            const ty=Math.round(depth*(height-1));
+            const center=.49*width;
+            const side=mx-neck;
+            const halfSpan=Math.max(span*.34,side>0?rowRight[my]-neck:neck-rowLeft[my]);
+            const distance=Math.min(1,Math.abs(side)/halfSpan);
+            const edge=side>0?(60-54*depth):(388+28*depth);
+            const tx=Math.round(center+(edge-center)*distance);
+            const sample=(ty*width+tx)*4;
+            const luminance=.3*jacketPixels[sample]+.59*jacketPixels[sample+1]+.11*jacketPixels[sample+2];
+            const exposure=.68+.58*light;
+            for(let k=0;k<3;k++){
+              let value=jacketPixels[sample+k];
+              if(look==='denim')value=.32*value+luminance*[.54,.78,1.18][k]+[6,13,24][k];
+              if(look==='disco')value=.17*value+Math.sqrt(luminance/255)*[160,165,180][k];
+              pixels[i+k]+=blend*(value*exposure-pixels[i+k]);
+            }
+            continue;
+          }
           const shade=.17+light*1.22+.025*Math.sin(mx*12+my*7);
           for(let k=0;k<3;k++)pixels[i+k]+=blend*(color[k]*shade+35*light**4-pixels[i+k]);
         }
         ctx.putImageData(frame,0,0);
-        if(right>left)accessories(ctx,selectedRef.current,result.confidenceMasks[3],w,h,(right-left)*w/mw,top*h/mh);
+        if(right>left && look!=='leather')accessories(ctx,selectedRef.current,result.confidenceMasks[3],w,h,(right-left)*w/mw,top*h/mh);
       });
     }
     rafRef.current=requestAnimationFrame(render);
