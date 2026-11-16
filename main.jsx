@@ -40,7 +40,7 @@ hair.onload=()=>{
   }
   hairPixels=brush.getImageData(0,0,120,34).data;
 };
-wardrobe.src='/wardrobe.jpg';hair.src='/prem-hair.png';
+wardrobe.src='/shoulder-fits.jpg';hair.src='/prem-hair.png';
 function accessories(ctx, look, mask, w, h, shoulderWidth, garmentTop){
   const values=mask.getAsFloat32Array();
   let left=mask.width,right=0,top=mask.height,bottom=0;
@@ -66,6 +66,20 @@ function accessories(ctx, look, mask, w, h, shoulderWidth, garmentTop){
     case 'badge':oval(-.31*shoulderWidth/width,neck+.32,.12,.072);ctx.fillStyle='#33291b';ctx.font='bold 0.065px sans-serif';ctx.textAlign='center';ctx.fillText(look.title==='Iqbal'?'786':'PREM',-.31*shoulderWidth/width,neck+.34);break;
     case 'epaulettes':for(const sign of [-1,1])for(let n=0;n<3;n++)ctx.fillRect(sign*.32*shoulderWidth/width-.14,neck+n*.03,.28,.017);break;
     case 'choker':for(let n=-5;n<=5;n++){ctx.fillStyle='#f5e1b8';oval(n*.061,1.08+.055*Math.cos(n*.28),.035,.026)}break;
+    case 'drops':
+      for(const sign of [-1,1]){
+        const cx=sign*.48;
+        const gold=ctx.createLinearGradient(cx-.045,0,cx+.045,0);
+        ['#78511e','#ffdf85','#ba812b','#ffdd84','#815321'].forEach((c,i)=>gold.addColorStop(i/4,c));
+        ctx.fillStyle=gold;
+        oval(cx,.72,.018,.018);
+        ctx.fillRect(cx-.005,.731,.01,.032);
+        ctx.beginPath();
+        ctx.ellipse(cx,.804,.048,.047,0,Math.PI,2*Math.PI);
+        ctx.closePath();ctx.fill();
+        for(let bead=-2;bead<=2;bead++)oval(cx+bead*.018,.809,.008,.009);
+      }
+      break;
     default:for(const sign of [-1,1]){const cx=sign*.48;oval(cx,.72,.023,.018);if(look.accessory==='hoops')oval(cx,.82,.057,.09,false);else{ctx.fillStyle=look.accessory==='pearls'?'#efe5ce':metal;oval(cx,.80,.041,.05);if(look.accessory==='drops')oval(cx,.86,.066,.036)}}
   }
   ctx.restore();
@@ -129,6 +143,9 @@ function App(){
           if(row<top+span*.10){neckSum+=col;neckCount++}
         }
         const neck=neckCount?neckSum/neckCount:(left+right)/2;
+        // Measure the upper torso independently of sleeves near the camera.
+        const shoulderRow = Math.min(mh-1, top+Math.round(span*.24*w*mh/(mw*h)));
+        const shoulderSpan = Math.max(span*.55, rowRight[shoulderRow]-rowLeft[shoulderRow]);
         for(let y=0;y<h;y++)for(let x=0;x<w;x++){
           const mx=Math.floor((w-1-x)*mw/w),my=Math.floor(y*mh/h);
           const blend=Math.min(1,Math.max(0,(confidence[my*mw+mx]-.12)*2.8));
@@ -172,8 +189,10 @@ function App(){
           }
           if(textiles && tile>=0 && tile<9){
             const tileX=tile%3,tileY=Math.floor(tile/3);
-            const sx=Math.floor((tileX+.01+.98*Math.min(1,Math.max(0,1-u)))*wardrobe.width/3);
-            const sy=Math.floor((tileY+.01+.98*Math.min(1,Math.max(0,v*1.65*h*mw/(w*mh))))*wardrobe.height/3);
+            const sideWidth = mx < neck ? neck-rowLeft[my] : rowRight[my]-neck;
+            const horizontal = .5-(mx-neck)/(2*Math.max(1,sideWidth));
+            const sx=Math.floor((tileX+.001+.998*Math.min(1,Math.max(0,horizontal)))*wardrobe.width/3);
+            const sy=Math.floor((tileY+.01+.98*Math.min(1,Math.max(0,(my-top)*h*mw/(w*mh*shoulderSpan*1.22))))*wardrobe.height/3);
             const sample=(sy*wardrobe.width+sx)*4;
             for(let k=0;k<3;k++)pixels[i+k]+=blend*(textiles[sample+k]*(.7+.55*light)-pixels[i+k]);
             continue;
