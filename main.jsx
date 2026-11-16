@@ -40,7 +40,7 @@ hair.onload=()=>{
   }
   hairPixels=brush.getImageData(0,0,120,34).data;
 };
-wardrobe.src='/shoulder-fits.jpg';hair.src='/prem-hair.png';
+wardrobe.src='/costumes.webp';hair.src='/prem-hair.png';
 function accessories(ctx, look, mask, w, h, shoulderWidth, garmentTop){
   const values=mask.getAsFloat32Array();
   let left=mask.width,right=0,top=mask.height,bottom=0;
@@ -194,7 +194,7 @@ function App(){
             const sx=Math.floor((tileX+.001+.998*Math.min(1,Math.max(0,horizontal)))*wardrobe.width/3);
             const sy=Math.floor((tileY+.01+.98*Math.min(1,Math.max(0,(my-top)*h*mw/(w*mh*shoulderSpan*1.22))))*wardrobe.height/3);
             const sample=(sy*wardrobe.width+sx)*4;
-            for(let k=0;k<3;k++)pixels[i+k]+=blend*(textiles[sample+k]*(.7+.55*light)-pixels[i+k]);
+            for(let k=0;k<3;k++)pixels[i+k]+=blend*(textiles[sample+3]/255)*(textiles[sample+k]*(.7+.55*light)-pixels[i+k]);
             continue;
           }
           const shade=.17+light*1.22+.025*Math.sin(mx*12+my*7);
@@ -206,34 +206,44 @@ function App(){
     }
     rafRef.current=requestAnimationFrame(render);
   };
-  const capture=()=>{ if(!videoRef.current||camera!=='live')return; setTimer(true); setTimeout(()=>{const v=videoRef.current, c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const x=c.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(v,0,0);x.setTransform(1,0,0,1,0,0);const overlay=garmentCanvasRef.current;if(overlay)x.drawImage(overlay,0,0,c.width,c.height);setCaptured(c.toDataURL('image/png'));setMode('photo');setTimer(false)},900); };
-  const download=()=>{if(!captured)return;const a=document.createElement('a');a.href=captured;a.download=`filmi-fit-${selected.id}.png`;a.click()};
-  return <main className="app-shell">
-    <header className="topbar"><a className="brand" href="#"><span className="brand-mark">F</span><span>FILMI<span className="brand-accent">FIT</span><small>THE BOLLYWOOD PHOTO BOOTH</small></span></a><div className="top-center"><span className="live-dot"/> MADE FOR YOUR MAIN CHARACTER MOMENT</div><button className="about-button" onClick={()=>document.getElementById('about').showModal()}>THE IDEA <ChevronRight size={15}/></button></header>
-    <section className="intro"><div className="intro-kicker"><Sparkles size={14}/> YOUR SCENE. YOUR STYLE. YOUR STAR TURN.</div><h1>Lights, camera,<br/><em>you.</em></h1><p>Step into the frame. Pick an iconic Bollywood look.<br className="desktop-only"/> The spotlight is yours.</p></section>
-    <section className="booth-layout">
-      <div className="screen-wrap"><div className="screen-top"><div><span className="screen-label">THE BIG SCREEN</span><span className="screen-sub">LIVE FROM YOUR CAMERA</span></div><div className="screen-status"><span className={camera==='live'?'live-dot':'status-dot'}/>{camera==='live'?'LIVE':camera==='starting'?'WAKING UP…':'READY WHEN YOU ARE'}</div></div>
-        <div className="camera-stage">
-          <video ref={videoRef} className="camera-video" playsInline muted style={{display:camera==='live'?'block':'none'}}/>
-          <div className="preview-placeholder" style={{display:camera==='live'?'none':'flex'}}><div className="placeholder-sun"/><div className="placeholder-arch"><div className="placeholder-person"><i/><b/><span/></div></div><span className="placeholder-caption">YOUR CLOSE-UP STARTS HERE</span></div>
-          <canvas ref={garmentCanvasRef} className="camera-overlay" style={{objectFit:"cover",display:poseReady&&camera==='live'?'block':'none'}}/>
-          {camera!=='live'&&<div className="frame-guides"><span/><i/><b/></div>}
-          {camera!=='live'&&<div className="camera-cta"><span className="cta-icon"><Camera size={22}/></span><strong>{camera==='starting'?'Getting the stage ready…':'Ready for your close-up?'}</strong><span>Your camera stays right here on your device.</span><button className="primary-button" onClick={startCamera} disabled={camera==='starting'}><Camera size={17}/>{camera==='starting'?'STARTING CAMERA':'START THE CAMERA'}</button>{error&&<p className="error-message">{error}</p>}</div>}
-          {camera==='live'&&<div className="viewfinder-label"><span>● REC</span><span>FILMI FIT · CAM 01</span></div>}
-          {timer&&<div className="flash-count">3</div>}
-          {mode==='photo'&&captured&&<div className="photo-result"><img src={captured}/><div className="photo-actions"><span>THAT'S A WRAP!</span><button onClick={download}><Download size={16}/> SAVE PHOTO</button><button className="retake" onClick={()=>setMode('live')}><RefreshCw size={15}/> RETAKE</button></div></div>}
+  const timeout = useRef(null);
+  useEffect(() => () => clearTimeout(timeout.current), []);
+  const capture = () => {
+    if (timeout.current !== null || !poseReady || mode === 'photo') return;
+    let seconds = 5;
+    setTimer(seconds);
+    const tick = () => {
+      seconds -= 1;
+      setTimer(seconds);
+      if (seconds > 0) {
+        timeout.current = setTimeout(tick, 1000);
+        return;
+      }
+      timeout.current = null;
+      setCaptured(garmentCanvasRef.current.toDataURL('image/png'));
+      setMode('photo');
+    };
+    timeout.current = setTimeout(tick, 1000);
+  };
+  const download=()=>{if(!captured)return;const a=document.createElement('a');a.href=captured;a.download=`shaam-e-cinema-${selected.id}.png`;a.click()};
+  return <main>
+    <header><img src="/wordmark.jpg" alt="Shaam-e-Cinema"/><h1>Bollywood Photo Booth</h1></header>
+    <section className="booth">
+      <div>
+        <div className="stage">
+          <video ref={videoRef} playsInline muted hidden={camera!=='live'}/>
+          <canvas ref={garmentCanvasRef} hidden={!poseReady}/>
+          {camera!=='live' && <div className="entrance"><button onClick={startCamera} disabled={camera==='starting'}><Camera size={18}/> {camera==='starting'?'Opening camera…':'Open camera'}</button>{error && <p role="alert">{error}</p>}</div>}
+          {timer>0 && <output aria-live="assertive">{timer}</output>}
+          {mode==='photo' && <img src={captured} alt="Your costume portrait"/>}
         </div>
-        <div className="screen-footer"><span><Sparkles size={14}/> {poseReady?'LIVE FABRIC FIT':camera==='live'?'LOADING FABRIC FIT':'CAMERA OFF'}</span><span>ONE STAR AT A TIME</span></div>
+        <div className="caption"><div><strong>{selected.title}</strong><small>{selected.film}</small></div>
+        {mode==='photo' ? <div className="actions"><button onClick={()=>{setCaptured(null);setMode('live')}}>Retake</button><button onClick={download}>Save photo</button></div> :
+        <button disabled={!poseReady || !!timer} onClick={capture}><Camera size={17}/> Take photo <small>5 sec</small></button>}</div>
       </div>
-      <aside className="wardrobe"><div className="wardrobe-heading"><span className="screen-label">THE COSTUME DEPARTMENT</span><span className="wardrobe-count">{String(looks.length).padStart(2,'0')} LOOKS</span></div><h2>Pick your <em>picture.</em></h2><p className="wardrobe-copy">A little 80s. A lot of leading role.</p><div className="look-list" style={{maxHeight:350,overflowY:"auto"}}>{looks.map((look,i)=><button className={`look-card ${selected.id===look.id?'selected':''}`} key={look.id} onClick={()=>{setSelected(look);setCaptured(null);setMode('live')}}><span className="look-thumb" style={{'--color-a':look.colors[0],'--color-b':look.colors[1]}}><span>{look.icon}</span></span><span className="look-info"><strong>{look.title}</strong><small>{look.film}</small></span><span className="look-number">{String(i+1).padStart(2,'0')}</span></button>)}</div>
-        <div className="selected-note"><span className="note-star">✦</span><div><small>NOW SHOWING</small><strong>{selected.tagline}</strong></div><span className="note-film">{selected.film}</span></div>
-        <button className="shutter-button" onClick={camera==='live'?capture:startCamera} disabled={camera==='starting'}><span className="shutter-icon"><Circle size={25} fill="currentColor"/></span><span>{camera==='live'?'TAKE THE SHOT':'STEP INTO THE SPOTLIGHT'}<small>{camera==='live'?'3 second countdown · save your photo':'Turn on your camera to begin'}</small></span><ChevronRight size={19}/></button>
-        <div className="booth-note"><Sun size={14}/> TIP: GOOD LIGHTING MAKES EVERY STAR SHINE.</div>
-      </aside>
+      <aside><h2>Choose your costume</h2><div className="list">{looks.map(look=><button key={look.id} aria-pressed={selected===look} disabled={!!timer || mode==='photo'} onClick={()=>setSelected(look)}>
+        <i style={{backgroundColor:look.colors[0]}}/><span>{look.title}<small>{look.film}</small></span>{selected===look && <b aria-hidden="true">✓</b>}</button>)}</div></aside>
     </section>
-    <footer className="footer"><span>AN HOMAGE TO THE GOLDEN AGE OF BOLLYWOOD</span><span className="footer-ornament">✳</span><span>MADE FOR YOUR MOMENT</span></footer>
-    <dialog id="about" className="about-dialog"><button className="dialog-close" onClick={()=>document.getElementById('about').close()}>×</button><span className="intro-kicker">THE CONCEPT</span><h2>Your very own<br/><em>Bollywood close-up.</em></h2><p>Filmi Fit turns a café visit into a starring role. Pick a look inspired by the unforgettable style of 80s Bollywood, see it over your live camera view, then take home your movie moment.</p><small>Camera processing happens in your browser. Your camera feed is not uploaded.</small></dialog>
-  </main>
+  </main>;
 }
-
 createRoot(document.getElementById('root')).render(<App/>);
